@@ -1,0 +1,73 @@
+INCLUDE "VARIABLE"
+
+' 初始化
+RECVBUF_READ_READY = 0
+RECVBUF_WRITE_READY = 0
+SENDBUF_READ_READY = 0
+SENDBUF_WRITE_READY = 0
+
+SHUT_DOWN_EXEC = 0
+SHUT_DOWN_FINISHED = 0
+ERR_COM = 0
+
+MOVE_POS_RX = 0
+MOVE_POS_RY = 90
+MOVE_POS_RZ = 0
+' Fixture direction fixing
+
+' connect open --USERTASK.999
+FORKMCR 999, 10000
+*READY
+' send welcome commond
+CallProc WaitForSendReady()
+SEND_STR = "Please enter coordinates or exit:"
+CallProc ExecuteSend()
+
+CallProc ExecuteRecieve()
+IF "exit" = RECV_STR1 THEN *FINAL
+
+' recv value
+' CallProc ExecuteRecieve()
+
+' move
+DECISION_VALUE = VAL(RECV_STR4)
+IF DECISION_VALUE = 0 AND rCurrentNum = 3
+	MOVE_POS_X =  VAL(RECV_STR1)
+	MOVE_POS_Y =  VAL(RECV_STR2)
+	MOVE_POS_Z =  VAL(RECV_STR3)
+	' MOVE_POS_RX = VAL(RECV_STR4)
+	' MOVE_POS_RY = VAL(RECV_STR5)
+	' MOVE_POS_RZ = VAL(RECV_STR6)
+	CallProc ExecuteMove()
+ENDIF
+GOTO *READY
+
+' program finished
+*FINAL
+SHUT_DOWN_EXEC = 1
+IF SHUT_DOWN_FINISHED = 0 THEN *FINAL
+END
+
+' *********subfunction*********
+
+UsrProc WaitForSendReady()
+	*SEND_LOOP
+	IF ERR_COM <> 0 THEN *FINAL
+	IF SENDBUF_WRITE_READY = 0 THEN *SEND_LOOP
+EndProc
+
+UsrProc ExecuteSend()
+	SENDBUF_READ_READY = 1
+EndProc
+
+UsrProc ExecuteRecieve()
+	RECVBUF_WRITE_READY = 1
+	*RECV_LOOP
+	IF ERR_COM <> 0 THEN *FINAL
+	IF RECVBUF_READ_READY = 0 THEN *RECV_LOOP
+	RECVBUF_READ_READY = 0
+EndProc
+
+UsrProc ExecuteMove()
+	MOVEX A=1,AC=3,SM=3, M1X, L, (MOVE_POS_X, MOVE_POS_Y, MOVE_POS_Z, MOVE_POS_RX,MOVE_POS_RY,MOVE_POS_RZ),R=10,MS
+EndProc
