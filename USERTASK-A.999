@@ -1,0 +1,91 @@
+' TCP/IP Server
+
+INCLUDE "VARIABLE"
+
+*CREATE
+FOR L100%=0 TO 20 STEP 1
+	SOCKCREATE 1, 0			'Socket#1 & TCP/IP
+	IF E1%>=0 THEN *SOCKBIND
+	PAUSE 500
+NEXT
+GOTO *ERROR_END
+
+*SOCKBIND
+SOCKBIND 1, PORT   ' PORT = 10030
+IF E%[1] < 0 THEN *ERROR_END
+
+' wait connect
+*SOCKWAIT
+SOCKWAIT 1,2,0
+IF E%[1] < 0 THEN *ERROR_END
+
+' ----------------------------
+*COM_LOOP
+SENDBUF_WRITE_READY = 1
+IF SENDBUF_READ_READY <> 0 THEN *SEND_BUF
+IF RECVBUF_WRITE_READY <> 0 THEN *RECV_BUF
+IF SHUT_DOWN_EXEC <> 0 THEN *NORMAL_END
+GOTO *COM_LOOP
+
+*RECV_BUF
+RECVBUF_WRITE_READY = 0
+
+' receive data--------
+rCurrentNum = 1
+V$[rCurrentNum + STR_SAVE_OFFSET] = ""  
+' RECV_STR1(V11$) = ""
+
+*RECV_BYTE_LOOP
+SOCKRECV 2, 1, 1, 0, RECIEVED_BYTES
+' write to RECIEVED_BYTES(V12%)
+IF E%[1] < 0 THEN *ERROR_END
+
+' Extracts 1 byte of data from the buffer
+GETBYTE 1, BYTE_DATA, 0
+CharString = CHR$(BYTE_DATA)
+IF 10 = BYTE_DATA OR 13 = BYTE_DATA
+' In ASCII code 10 is line feed and 13 is carriage return 
+' (their as the end of an instruction)
+GOTO *RECV_END  ' Out1
+ENDIF
+
+IF "," = CharString
+rCurrentNum = rCurrentNum + 1
+V$[rCurrentNum + STR_SAVE_OFFSET] = ""
+GOTO *RECV_BYTE_LOOP
+ENDIF
+
+V$[rCurrentNum + STR_SAVE_OFFSET] = V$[rCurrentNum + STR_SAVE_OFFSET] + CharString
+GOTO *RECV_BYTE_LOOP
+' receive data---------
+
+*RECV_END
+SOCKRECV 2, 2, 1, 0, RECIEVED_BYTES
+' write to RECIEVED_BYTES(V12%)
+IF E%[1] < 0 THEN *ERROR_END
+RECVBUF_READ_READY = 1
+' ExecuteRecieve() Loop
+' BYTE_DATA = 0
+GOTO *COM_LOOP
+' receive data end---------
+
+
+' sent data--------
+*SEND_BUF
+SENDBUF_READ_READY = 0
+SOCKSENDSTR 2, SEND_STR, LEN(SEND_STR), 0, SENT_BYTES, 2
+IF E%[1] < 0 THEN *ERROR_END
+GOTO *COM_LOOP
+' sent data end--------
+
+*ERROR_END
+ERRCODE1 = E%[1]
+ERRCODE2 = E%[2]
+ERR_COM = 1
+
+' close the connect
+*NORMAL_END
+SOCKCLOSE 1
+SOCKCLOSE 2
+SHUT_DOWN_FINISHED = 1
+END
